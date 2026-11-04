@@ -11,7 +11,7 @@ from .results import latest_tag, plots_dir, read_csv, results_dir
 
 # Kernel whose GFLOPS are "100%" in the percent-of-vendor plot.
 REFERENCE = {"cpu": "openblas", "gpu": "cublas_fp32", "tpu": "xla_fp32_highest"}
-
+OPTIONAL_PREFIX = {"gpu": "torch_"}
 
 def _label(row: dict) -> str:
     build = str(row.get("build") or "").strip()
@@ -19,11 +19,13 @@ def _label(row: dict) -> str:
     return f"{row['kernel']} [{short}]" if short else str(row["kernel"])
 
 
-def load_series(backend: str, tag: str) -> dict[str, list[dict]]:
+def load_series(backend: str, tag: str, include_optional: bool = False) -> dict[str, list[dict]]:
     series: dict[str, list[dict]] = {}
     source: dict[str, str] = {}
     for p in sorted(results_dir(backend, tag, create=False).glob("*.csv")):
         if p.name == "peak.csv":
+            continue
+        if not include_optional and p.name.startswith(OPTIONAL_PREFIX.get(backend, "\0")):
             continue
         for r in read_csv(p):
             label = _label(r)
@@ -47,11 +49,11 @@ def _style_n_axis(ax, ns):
     ax.grid(True, which="major", alpha=0.3)
 
 
-def make_plots(backend: str, tag: str | None = None) -> list[str]:
+def make_plots(backend: str, tag: str | None = None, include_optional: bool = False) -> list[str]:
     tag = tag or latest_tag(backend)
     if not tag:
         raise SystemExit(f"No results for '{backend}' yet. Run: python run.py {backend} run")
-    series = load_series(backend, tag)
+    series = load_series(backend, tag, include_optional)
     if not series:
         raise SystemExit(f"No CSV rows under {results_dir(backend, tag, create=False)}")
     out = plots_dir(backend, tag)

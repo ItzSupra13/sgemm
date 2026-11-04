@@ -67,7 +67,10 @@ def kernels(cfg: dict) -> list[Kernel]:
     fetch = lambda out: out.float().cpu().numpy()
     fp16_round = lambda x: x.astype(np.float16).astype(np.float32)
     arch = cfg.get("arch") or cuda_build.DEFAULT_ARCH
-    return cuda_kernels(torch, arch) + [
+    mine = cuda_kernels(torch, arch)               # cublas_fp32 + every kernels/*.cu
+    if not (cfg.get("torch") or "torch" in str(cfg.get("kernels") or "")):
+        return mine                                # default: no torch baselines
+    return mine + [
         Kernel("torch_fp32", "fp32", torch_matmul(torch.float32), fetch, tol=1e-4),
         Kernel("torch_fp16", "fp16", torch_matmul(torch.float16), fetch, tol=1e-2,
                ref_key="fp16", ref_round=fp16_round),

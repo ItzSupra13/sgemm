@@ -38,8 +38,7 @@ def build_cfg(args) -> dict:
         cfg["sizes"] = args.sizes
     if args.reps:
         cfg["reps"] = args.reps
-    cfg.update(tag=args.tag, fresh=args.fresh, any_device=args.any_device,
-               kernels=args.kernels, arch=args.arch)
+    cfg.update(tag=args.tag, fresh=args.fresh, any_device=args.any_device, kernels=args.kernels, arch=args.arch, torch=args.torch)
     return cfg
 
 
@@ -55,6 +54,7 @@ def main() -> None:
     ap.add_argument("--tag", help="results subfolder name (default: <platform>-<device>)")
     ap.add_argument("--fresh", action="store_true", help="discard existing results for this tag first")
     ap.add_argument("--any-device", action="store_true", help="skip the expected-device check")
+    ap.add_argument("--torch", action="store_true", help="gpu: also run/plot the torch.matmul baselines (off by default)")
     args = ap.parse_args()
     cfg = build_cfg(args)
 
