@@ -1,0 +1,19 @@
+[project]
+name = "sgemm"
+version = "0.1.0"
+description = "SGEMM optimization ladder on CPU, GPU (T4) and TPU"
+requires-python = ">=3.9"
+dependencies = ["numpy", "matplotlib"]
+
+# Do NOT install these on Colab: torch (GPU runtime) and jax (TPU runtime) are preinstalled
+# and pip-installing over them usually breaks the runtime. They are for laptops / Modal images.
+[project.optional-dependencies]
+gpu = ["torch"]
+tpu = ["jax[tpu]"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sgemm*"]
