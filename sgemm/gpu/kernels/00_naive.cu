@@ -3,13 +3,13 @@
 #define BLOCK 32
 
 __global__ void naive(int n, const float *A, const float *B, float *C) {
-    const int i = blockIdx.x * BLOCK + threadIdx.x;   // row of C
-    const int j = blockIdx.y * BLOCK + threadIdx.y;   // column of C
+    const int i = blockIdx.x * BLOCK + threadIdx.x; // row of C
+    const int j = blockIdx.y * BLOCK + threadIdx.y; // column of C
     if (i < n && j < n) {
         float sum = 0.0f;
         for (int k = 0; k < n; k++)
             sum += A[i * n + k] * B[k * n + j];
-        C[i * n + j] = sum;   // assignment, so C needs no zeroing
+        C[i * n + j] = sum;
     }
 }
 

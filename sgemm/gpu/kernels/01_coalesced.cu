@@ -1,6 +1,7 @@
+// Acts as our baseline
 #include <cuda_runtime.h>
 
-#define BX 32   // threads along the COLUMN (j): exactly one warp
+#define BX 32    // exactly one warp
 #define BY 32    // rows per block
 
 __global__ void coalesced(int n, const float *A, const float *B, float *C) {

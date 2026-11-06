@@ -70,6 +70,12 @@ def gpu_info() -> dict:
         import torch
         info["torch"] = torch.__version__
         info["cuda"] = torch.version.cuda
+        info["cuda"] = torch.version.cuda
+        try:
+            pr = torch.cuda.get_device_properties(0)
+            info["sm_count"], info["cc"] = pr.multi_processor_count, f"{pr.major}.{pr.minor}"
+        except Exception:
+            pass
     except Exception as e:  # torch missing is fine for info-only calls
         info["torch"] = f"unavailable ({type(e).__name__})"
     return info

@@ -1,7 +1,10 @@
 """Plots for any unit, from its results/<tag>/*.csv. Runs anywhere (laptop, Colab, Modal)."""
-from __future__ import annotations
 
+from __future__ import annotations
 import matplotlib
+import json
+import re
+import statistics
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -48,6 +51,39 @@ def _style_n_axis(ax, ns):
     ax.set_xlabel("matrix size n (n x n x n)")
     ax.grid(True, which="major", alpha=0.3)
 
+def _display(backend: str, rows: list[dict]) -> str:
+    """Legend name: kernel without its stage number (00_naive -> naive)."""
+    name = re.sub(r"^\d+_", "", str(rows[0]["kernel"]))
+    if backend == "cpu":  # cpu variants differ by compiler flags, so keep that tag to tell them apart
+        build = str(rows[0].get("build") or "").split()
+        if build and build[0] != "unknown":
+            name += f" [{build[0]}]"
+    return name
+
+
+def theoretical_peak(backend: str, tag: str):
+    """(GFLOPS, legend label) for the GPU's fp32 FMA peak from the specs in env.json, else None.
+    peak = SMs x fp32 cores per SM x 2 FLOP per FMA x max SM clock."""
+    if backend != "gpu":
+        return None
+    try:
+        env = json.loads((results_dir(backend, tag, create=False) / "env.json").read_text())
+    except (OSError, ValueError):
+        return None
+    g = env.get("gpu") or {}
+    t4 = "T4" in str(g.get("name", ""))                  # fallback for env.json written before sm_count existed
+    sms = g.get("sm_count") or (40 if t4 else None)
+    cc = str(g.get("cc") or ("7.5" if t4 else ""))
+    cores = 64 if (cc.startswith("7") or cc == "8.0") else 128 if cc[:1] in ("8", "9") else None
+    try:
+        mhz = float(str(g.get("max_sm_clock", "")).split()[0])
+    except (IndexError, ValueError):
+        return None
+    if not (sms and cores):
+        return None
+    gflops = sms * cores * 2 * mhz / 1000.0
+    return gflops, f"theoretical peak, {mhz:.0f} MHz boost ({gflops:.0f})"
+
 
 def make_plots(backend: str, tag: str | None = None, include_optional: bool = False) -> list[str]:
     tag = tag or latest_tag(backend)
@@ -59,6 +95,12 @@ def make_plots(backend: str, tag: str | None = None, include_optional: bool = Fa
     out = plots_dir(backend, tag)
     paths: list[str] = []
     ns = {r["n"] for rows in series.values() for r in rows}
+    disp = {key: _display(backend, rows) for key, rows in series.items()}
+
+    # vendor reference (cuBLAS etc.), needed by both plots
+    ref_name = REFERENCE.get(backend)
+    ref_label = next((l for l in series if l.split(" [")[0] == ref_name), None)
+    ref = {r["n"]: r["median_gflops"] for r in series[ref_label] if r["ok"]} if ref_label else {}
 
     peak_gf, peak_rows = None, []
     peak_csv = results_dir(backend, tag, create=False) / "peak.csv"
@@ -68,22 +110,31 @@ def make_plots(backend: str, tag: str | None = None, include_optional: bool = Fa
             peak_gf = max(r["gflops"] for r in peak_rows)
 
     # 1) GFLOPS vs n
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for label, rows in series.items():
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for key, rows in series.items():
         good = [r for r in rows if r["ok"]]
         bad = [r for r in rows if not r["ok"]]
-        ax.plot([r["n"] for r in good], [r["median_gflops"] for r in good], marker="o", label=label)
+        if good:
+            med = statistics.median(r["median_gflops"] for r in good)
+            ax.plot([r["n"] for r in good], [r["median_gflops"] for r in good], marker="o",
+                    label=f"{disp[key]} (median {med:.0f} GFLOPS)")
         if bad:
-            print(f"WARNING: {label}: {len(bad)} size(s) failed the correctness check (shown as red x)")
+            print(f"WARNING: {disp[key]}: {len(bad)} size(s) failed the correctness check (shown as red x)")
             ax.scatter([r["n"] for r in bad], [r["median_gflops"] for r in bad],
                        marker="x", color="red", zorder=5)
+    tp = theoretical_peak(backend, tag)
+    if tp:
+        ax.axhline(tp[0], ls=":", color="black", label=tp[1])
+    if ref:   # practical roof: the best the vendor library actually reached on this machine
+        best = max(ref.values())
+        ax.axhline(best, ls="-.", color="gray", label=f"best {disp[ref_label]} observed ({best:.0f})")
     if peak_gf:
         ax.axhline(peak_gf, ls="--", color="gray", label=f"measured 1-core FMA peak ({peak_gf:.0f})")
     ax.set_yscale("log")
     ax.set_ylabel("GFLOPS (median)")
     _style_n_axis(ax, ns)
     ax.set_title(f"{backend.upper()} SGEMM: {tag}")
-    ax.legend(fontsize=8)
+    ax.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1))
     fig.tight_layout()
     p = out / "gflops_vs_n.png"
     fig.savefig(p, dpi=150)
@@ -91,23 +142,22 @@ def make_plots(backend: str, tag: str | None = None, include_optional: bool = Fa
     paths.append(str(p))
 
     # 2) percent of vendor library
-    ref_name = REFERENCE.get(backend)
-    ref_label = next((l for l in series if l.split(" [")[0] == ref_name), None)
     if ref_label:
-        ref = {r["n"]: r["median_gflops"] for r in series[ref_label] if r["ok"]}
-        fig, ax = plt.subplots(figsize=(8, 5))
-        for label, rows in series.items():
-            if label == ref_label:
+        fig, ax = plt.subplots(figsize=(10, 5))
+        for key, rows in series.items():
+            if key == ref_label:
                 continue
             pts = [(r["n"], 100.0 * r["median_gflops"] / ref[r["n"]])
                    for r in rows if r["ok"] and r["n"] in ref]
             if pts:
-                ax.plot(*zip(*pts), marker="o", label=label)
-        ax.axhline(100, ls="--", color="gray")
-        ax.set_ylabel(f"% of {ref_label}")
+                pct = [v for _, v in pts]
+                ax.plot(*zip(*pts), marker="o",
+                        label=f"{disp[key]} (median {statistics.median(pct):.1f}% / mean {statistics.mean(pct):.1f}%)")
+        ax.axhline(100, ls="--", color="gray", label=f"{disp[ref_label]} = 100%")
+        ax.set_ylabel(f"% of {disp[ref_label]}")
         _style_n_axis(ax, ns)
-        ax.set_title(f"{backend.upper()} SGEMM, percent of {ref_label}: {tag}")
-        ax.legend(fontsize=8)
+        ax.set_title(f"{backend.upper()} SGEMM, percent of {disp[ref_label]}: {tag}")
+        ax.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1))
         fig.tight_layout()
         p = out / "pct_of_vendor.png"
         fig.savefig(p, dpi=150)
