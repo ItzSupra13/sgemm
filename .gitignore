@@ -4,3 +4,4 @@ __pycache__/
 sgemm/cpu/bin/
 *.zip
 sgemm/gpu/bin/
+sgemm/gpu/third_party/

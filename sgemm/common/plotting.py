@@ -82,7 +82,7 @@ def theoretical_peak(backend: str, tag: str):
     if not (sms and cores):
         return None
     gflops = sms * cores * 2 * mhz / 1000.0
-    return gflops, f"Theoretical peak, ({gflops:.0f})"
+    return gflops, f"Theoretical peak ({gflops:.0f} GFLOPS)"
 
 
 def make_plots(backend: str, tag: str | None = None, include_optional: bool = False) -> list[str]:
@@ -127,7 +127,7 @@ def make_plots(backend: str, tag: str | None = None, include_optional: bool = Fa
         ax.axhline(tp[0], ls=":", color="black", label=tp[1])
     if ref:   # practical roof: the best the vendor library actually reached on this machine
         best = max(ref.values())
-        ax.axhline(best, ls="-.", color="gray", label=f"Best {disp[ref_label]} observed ({best:.0f})")
+        ax.axhline(best, ls="-.", color="gray", label=f"Best {disp[ref_label]} ({best:.0f} GFLOPS)")
     if peak_gf:
         ax.axhline(peak_gf, ls="--", color="gray", label=f"measured 1-core FMA peak ({peak_gf:.0f})")
     # ax.set_yscale("log")
@@ -152,7 +152,7 @@ def make_plots(backend: str, tag: str | None = None, include_optional: bool = Fa
             if pts:
                 pct = [v for _, v in pts]
                 ax.plot(*zip(*pts), marker="o",
-                        label=f"{disp[key]} ({statistics.median(pct):.1f}%")
+                        label=f"{disp[key]} ({statistics.median(pct):.1f}%)")
         ax.axhline(100, ls="--", color="gray", label=f"{disp[ref_label]} (100%)")
         ax.set_ylabel(f"% of {disp[ref_label]}")
         _style_n_axis(ax, ns)

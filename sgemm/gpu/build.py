@@ -16,6 +16,8 @@ from pathlib import Path
 GPU_DIR = Path(__file__).resolve().parent
 SRC_DIR = GPU_DIR / "kernels"
 BIN_DIR = GPU_DIR / "bin"
+CUTLASS_DIR = GPU_DIR / "third_party" / "cutlass"   # fetched on demand, git-ignored
+CUTLASS_TAG = "v3.5.1"
 
 DEFAULT_ARCH = "sm_75"  # Tesla T4 (Turing). Pinned on purpose so Colab and Modal builds are identical.
 
@@ -27,6 +29,25 @@ def find_nvcc() -> str:
     raise SystemExit("nvcc not found. On Colab pick a GPU runtime (the CUDA toolkit is preinstalled); "
                      "elsewhere install the CUDA toolkit and put nvcc on PATH.")
 
+def ensure_cutlass() -> Path:
+    """CUTLASS is header-only: shallow-clone a pinned tag once, return its include dir."""
+    inc = CUTLASS_DIR / "include"
+    if not (inc / "cutlass" / "cutlass.h").exists():
+        print(f"[gpu] fetching CUTLASS {CUTLASS_TAG} (one-off)", flush=True)
+        CUTLASS_DIR.parent.mkdir(exist_ok=True)
+        r = subprocess.run(["git", "clone", "--quiet", "--depth", "1", "--branch", CUTLASS_TAG,
+                            "https://github.com/NVIDIA/cutlass.git", str(CUTLASS_DIR)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise SystemExit(f"could not fetch CUTLASS:\n{r.stderr}")
+    return inc
+
+
+def extra_flags(src: Path) -> list[str]:
+    """Files that include CUTLASS headers get the include path and C++17 (CUTLASS requirement)."""
+    if "cutlass/" in src.read_text():
+        return ["-std=c++17", "--expt-relaxed-constexpr", "-I", str(ensure_cutlass())]
+    return []
 
 def sources() -> list[Path]:
     return sorted(SRC_DIR.glob("*.cu"))
@@ -49,7 +70,7 @@ def build(cfg: dict) -> list[Path]:
                  or lib.stat().st_mtime < src.stat().st_mtime)
         if stale:
             cmd = [nvcc, "-O3", f"-arch={arch}", "-lineinfo", "-shared", "-Xcompiler", "-fPIC",
-                   str(src), "-o", str(lib), "-lcublas"]
+                   *extra_flags(src), str(src), "-o", str(lib), "-lcublas"]
             print("[gpu] " + " ".join(cmd), flush=True)
             r = subprocess.run(cmd, capture_output=True, text=True)
             if r.returncode != 0:
