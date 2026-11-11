@@ -15,7 +15,7 @@ static_assert(NTHREADS == BM * BK && NTHREADS == BK * BN,
               "one thread loads exactly one element of each tile; change the loaders if you retune");
 
 __global__ void __launch_bounds__(NTHREADS)
-sgemm_smem_1d(int n, const float *A, const float *B, float *C) {
+sgemm_smem_1d(int n, const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C) {
     __shared__ float As[BM][BK];
     __shared__ float Bs[BK][BN];
 
@@ -55,7 +55,7 @@ sgemm_smem_1d(int n, const float *A, const float *B, float *C) {
     }
 }
 
-extern "C" int launch(int n, const float *A, const float *B, float *C) {
+extern "C" int launch(int n, const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C) {
     dim3 grid((n + BN - 1) / BN, (n + BM - 1) / BM);
     sgemm_smem_1d<<<grid, NTHREADS>>>(n, A, B, C);
     return (int)cudaGetLastError();

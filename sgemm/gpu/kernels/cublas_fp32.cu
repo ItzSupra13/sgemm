@@ -5,7 +5,7 @@
 
 static cublasHandle_t handle = nullptr;
 
-extern "C" int launch(int n, const float *A, const float *B, float *C) {
+extern "C" int launch(int n, const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C) {
     if (!handle) {
         if (cublasCreate(&handle) != CUBLAS_STATUS_SUCCESS) return -1;
         // Plain fp32 FMA path, no tensor-op math. (A T4 has no TF32 anyway; this keeps the

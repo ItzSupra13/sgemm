@@ -48,7 +48,7 @@ def _style_n_axis(ax, ns):
     ax.set_xticks(sorted(ns))
     ax.xaxis.set_major_formatter(ScalarFormatter())
     ax.xaxis.set_minor_locator(NullLocator())
-    ax.set_xlabel("matrix size n (n x n x n)")
+    ax.set_xlabel("Matrix Size (n x n x n)")
     ax.grid(True, which="major", alpha=0.3)
 
 def _display(backend: str, rows: list[dict]) -> str:
@@ -156,7 +156,7 @@ def make_plots(backend: str, tag: str | None = None, include_optional: bool = Fa
         ax.axhline(100, ls="--", color="gray", label=f"{disp[ref_label]} (100%)")
         ax.set_ylabel(f"% of {disp[ref_label]}")
         _style_n_axis(ax, ns)
-        ax.set_title(f"{backend.upper()} SGEMM, percent of {disp[ref_label]}: {tag}")
+        ax.set_title(f"{backend.upper()} SGEMM, % of {disp[ref_label]}: {tag}")
         ax.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1))
         fig.tight_layout()
         p = out / "pct_of_vendor.png"

@@ -5,3 +5,4 @@ sgemm/cpu/bin/
 *.zip
 sgemm/gpu/bin/
 sgemm/gpu/third_party/
+sgemm/gpu/kernels/cutlass_fp32.cu

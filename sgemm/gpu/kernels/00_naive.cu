@@ -2,7 +2,7 @@
 
 #define BLOCK 32
 
-__global__ void naive(int n, const float *A, const float *B, float *C) {
+__global__ void naive(int n, const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C) {
     const int i = blockIdx.x * BLOCK + threadIdx.x; // row of C
     const int j = blockIdx.y * BLOCK + threadIdx.y; // column of C
     if (i < n && j < n) {
@@ -13,7 +13,7 @@ __global__ void naive(int n, const float *A, const float *B, float *C) {
     }
 }
 
-extern "C" int launch(int n, const float *A, const float *B, float *C) {
+extern "C" int launch(int n, const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C) {
     dim3 block(BLOCK, BLOCK);
     dim3 grid((n + BLOCK - 1) / BLOCK, (n + BLOCK - 1) / BLOCK);
     naive<<<grid, block>>>(n, A, B, C);
